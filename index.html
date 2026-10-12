@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BetPredict</title>
+<style>
+  :root{--bg:#0f1419;--card:#18202a;--line:#263241;--txt:#e6edf3;--mut:#8b98a8;--acc:#3ddc97;--warn:#ffb454;--bad:#ff6b6b;}
+  @media (prefers-color-scheme: light){:root{--bg:#f4f6f8;--card:#fff;--line:#dde3ea;--txt:#16202a;--mut:#5d6b7a;--acc:#0f9d6a;--warn:#b86e00;--bad:#d03a3a;}}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.45 system-ui,sans-serif}
+  header{padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+  h1{font-size:18px;margin:0 0 8px} .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input,select,button{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
+  button{cursor:pointer} button.p{background:var(--acc);color:#04170f;border:0;font-weight:600}
+  main{padding:12px;max-width:900px;margin:auto}
+  .banner{background:var(--card);border:1px solid var(--warn);color:var(--warn);padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:13px}
+  .league{margin:16px 0 6px;color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden}
+  .head{padding:12px;cursor:pointer}
+  .teams{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+  .meta{color:var(--mut);font-size:12px;margin-top:2px}
+  .bar{display:flex;height:22px;border-radius:6px;overflow:hidden;margin-top:8px;font-size:12px;font-weight:600}
+  .bar div{display:flex;align-items:center;justify-content:center;color:#04170f;min-width:0}
+  .h{background:#3ddc97}.d{background:#9aa7b5}.a{background:#6ab0ff}
+  .pick{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;font-size:13px}
+  .tag{border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+  .tag.High{border-color:var(--acc);color:var(--acc)} .tag.Medium{border-color:var(--warn);color:var(--warn)} .tag.Low{color:var(--mut)}
+  .detail{display:none;padding:0 12px 12px;border-top:1px solid var(--line)}
+  .card.open .detail{display:block}
+  h3{font-size:13px;margin:14px 0 6px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+  table{width:100%;border-collapse:collapse;font-size:13px} td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .box{border:1px solid var(--line);border-radius:8px;padding:8px}
+  .box b{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+  .pos{color:var(--acc)} .neg{color:var(--bad)} .mut{color:var(--mut)}
+  .form span{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:4px;margin-right:2px;font-size:11px;font-weight:700;color:#04170f}
+  .W{background:#3ddc97}.D{background:#9aa7b5}.L{background:#ff6b6b}
+  footer{color:var(--mut);font-size:12px;padding:20px 12px 40px;max-width:900px;margin:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ BetPredict</h1>
+  <div class="row">
+    <input type="date" id="day">
+    <select id="lg"><option value="">All leagues</option></select>
+    <select id="sort"><option value="time">By kick-off</option><option value="conf">By confidence</option><option value="value">By value</option></select>
+    <button id="go" class="p">Load</button>
+    <button id="ref">Refresh</button>
+  </div>
+</header>
+<main>
+  <div id="demo" class="banner" style="display:none">Demo mode: results are simulated. Add API_FOOTBALL_KEY for real data.</div>
+  <div id="out">Loading…</div>
+</main>
+<footer>Probabilities are model estimates, not guarantees. Bookmakers build in a margin, so even a good model loses money without a real edge. Bet only what you can afford to lose. 18+ only.</footer>
+<script>
+const $=s=>document.querySelector(s);
+const pct=x=>(x*100).toFixed(1)+'%';
+let DATA=null;
+$('#day').value=new Date().toISOString().slice(0,10);
+
+async function load(refresh=false){
+  $('#out').textContent='Loading… (first run of the day can take a minute)';
+  const day=$('#day').value;
+  const r=await fetch('/api/'+(refresh?'refresh?':'predictions?')+'day='+day,{method:refresh?'POST':'GET'});
+  if(!r.ok){$('#out').textContent='Error: '+(await r.text());return;}
+  DATA=await r.json();
+  $('#demo').style.display=DATA.demo?'block':'none';
+  const leagues=[...new Set(DATA.matches.map(m=>m.league))];
+  const cur=$('#lg').value;
+  $('#lg').innerHTML='<option value="">All leagues</option>'+leagues.map(l=>`<option ${l===cur?'selected':''}>${l}</option>`).join('');
+  render();
+}
+function formHTML(s){return `<span class="form">${[...s].map(c=>`<span class="${c}">${c}</span>`).join('')}</span>`}
+function tbl(obj,fmt=pct){return '<table>'+Object.entries(obj).map(([k,v])=>`<tr><td>${k}</td><td class="n">${fmt(v)}</td></tr>`).join('')+'</table>'}
+function detail(m){
+  const M=m.markets, f=m.factors;
+  let h='';
+  h+=`<h3>Why this prediction</h3><div class="grid">
+   <div class="box"><b>Expected goals</b>${m.home} ${m.expected_goals.home} – ${m.expected_goals.away} ${m.away}<br><span class="mut">base model ${f.base_expected_goals.home}–${f.base_expected_goals.away}</span></div>
+   <div class="box"><b>Last ${m.form.home.n||8} form</b>${m.home}: ${formHTML(m.form.home.string)} <span class="mut">${m.form.home.ppg??'-'} ppg</span><br>${m.away}: ${formHTML(m.form.away.string)} <span class="mut">${m.form.away.ppg??'-'} ppg</span></div>
+   <div class="box"><b>Home strength / away strength</b>${m.home} at home: ${m.home_away_split.home_team_at_home.ppg??'-'} ppg<br>${m.away} away: ${m.home_away_split.away_team_away.ppg??'-'} ppg</div>
+   <div class="box"><b>Head to head (last ${m.h2h.n})</b>${m.h2h.home_wins}W-${m.h2h.draws}D-${m.h2h.away_wins}L for ${m.home}${m.h2h.recent.map(r=>`<br><span class="mut">${r.date} ${r.score}</span>`).join('')}</div>
+   <div class="box"><b>Elo</b>${m.home}: ${m.elo.home??'-'}<br>${m.away}: ${m.elo.away??'-'}</div>
+   <div class="box"><b>Model split (H/D/A)</b>Stats: ${f.stat_1x2.map(x=>pct(x)).join(' / ')}<br>ML: ${f.ml_1x2?f.ml_1x2.map(x=>pct(x)).join(' / '):'n/a'}<br><span class="mut">Adjustments: form ×${f.form_multiplier.home}/${f.form_multiplier.away}, injuries ×${f.injury_multiplier.home}/${f.injury_multiplier.away}</span></div>
+  </div>`;
+  const inj=(side,name)=>{const l=m.injuries[side];return l.length?`<b>${name}</b>: `+l.map(p=>`${p.name} <span class="mut">(${p.reason||p.type})</span>`).join(', '):''};
+  const ij=[inj('home',m.home),inj('away',m.away)].filter(Boolean);
+  h+=`<h3>Injuries & suspensions</h3>`+(ij.length?ij.join('<br>'):'<span class="mut">None reported</span>');
+  const ka=[...m.injuries.key_absences_home,...m.injuries.key_absences_away];
+  if(ka.length) h+=`<div class="mut">Key attacking absences: ${ka.map(k=>k.name+' ('+k.contribution+' G+A)').join(', ')}</div>`;
+  if(m.value_bets.length){
+    h+=`<h3>Odds vs model${m.odds.bookmaker?' ('+m.odds.bookmaker+')':''}</h3><table><tr><th>Bet</th><th class="n">Model</th><th class="n">Odds</th><th class="n">Edge</th><th class="n">EV/unit</th></tr>`+
+    m.value_bets.map(v=>`<tr><td>${v.bet}</td><td class="n">${pct(v.model_prob)}</td><td class="n">${v.odds}</td><td class="n ${v.edge>0?'pos':'neg'}">${(v.edge*100).toFixed(1)}%</td><td class="n ${v.ev_per_unit>0?'pos':'neg'}">${v.ev_per_unit.toFixed(2)}</td></tr>`).join('')+'</table>';
+  }
+  h+='<h3>All markets</h3><div class="grid">';
+  for(const [name,val] of Object.entries(M)){
+    if(name.startsWith('Asian')){
+      h+=`<div class="box"><b>${name}</b><table><tr><th></th><th class="n">Win</th><th class="n">Push</th><th class="n">Lose</th></tr>`+Object.entries(val).map(([k,v])=>`<tr><td>${k}</td><td class="n">${pct(v.win)}</td><td class="n">${v.push?pct(v.push):'-'}</td><td class="n">${pct(v.lose)}</td></tr>`).join('')+'</table></div>';
+    } else h+=`<div class="box"><b>${name}</b>${tbl(val)}</div>`;
+  }
+  return h+'</div>';
+}
+function render(){
+  if(!DATA)return;
+  const lg=$('#lg').value, sort=$('#sort').value;
+  let ms=DATA.matches.filter(m=>!lg||m.league===lg);
+  if(sort==='conf')ms=[...ms].sort((a,b)=>b.pick.probability-a.pick.probability);
+  if(sort==='value')ms=[...ms].sort((a,b)=>((b.value_bets[0]||{}).ev_per_unit||-9)-((a.value_bets[0]||{}).ev_per_unit||-9));
+  if(!ms.length){$('#out').innerHTML='<p class="mut">No matches for this date in the covered leagues.</p>';return;}
+  let html='',last='';
+  ms.forEach((m,i)=>{
+    if(sort==='time'||true){ if(m.league!==last && sort==='time'){html+=`<div class="league">${m.league}</div>`;last=m.league;} }
+    const H=m.markets['1X2'];
+    const t=new Date(m.kickoff).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    const o25=m.markets['Total goals over/under'], bt=m.markets['Both teams to score'];
+    html+=`<div class="card" id="c${i}"><div class="head" onclick="document.getElementById('c${i}').classList.toggle('open')">
+      <div class="teams"><span>${m.home}</span><span class="mut">${t}</span><span>${m.away}</span></div>
+      ${sort!=='time'?`<div class="meta">${m.league}</div>`:''}
+      <div class="bar"><div class="h" style="width:${H.Home*100}%">${Math.round(H.Home*100)}</div><div class="d" style="width:${H.Draw*100}%">${Math.round(H.Draw*100)}</div><div class="a" style="width:${H.Away*100}%">${Math.round(H.Away*100)}</div></div>
+      <div class="pick"><span class="tag ${m.pick.confidence}">${m.pick.confidence}: ${m.pick.selection} ${pct(m.pick.probability)}</span>
+      <span class="tag">O2.5 ${pct(o25['Over 2.5'])}</span><span class="tag">BTTS ${pct(bt.Yes)}</span>
+      <span class="tag">xG ${m.expected_goals.home}–${m.expected_goals.away}</span>
+      ${m.suggested_value.length?`<span class="tag pos">Value: ${m.suggested_value[0].bet} @${m.suggested_value[0].odds}</span>`:''}</div></div>
+      <div class="detail">${detail(m)}</div></div>`;
+  });
+  $('#out').innerHTML=html;
+}
+$('#go').onclick=()=>load(false); $('#ref').onclick=()=>load(true);
+$('#lg').onchange=render; $('#sort').onchange=render;
+load();
+</script>
+</body>
+</html>
