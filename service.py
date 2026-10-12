@@ -7,7 +7,7 @@ import numpy as np
 
 from . import source
 from .config import (LEAGUES, PRED_DIR, HALF_LIFE_DAYS, FORM_MATCHES, H2H_MATCHES, ML_WEIGHT,
-                     HISTORY_SEASONS_BACK, current_season, DEMO)
+                     HISTORY_SEASONS_BACK, current_season, DEMO, PROVIDER)
 from .model import StrengthModel, score_matrix, rescale_1x2, markets, to_py
 from .ml import MLModel
 from . import context as C
@@ -59,6 +59,9 @@ def value_bets(M, o):
 
 def build(day: date, history=None, models=None):
     history = history if history is not None else load_history(day)
+    if len(history) < 100:
+        raise RuntimeError("Not enough match history loaded (%d matches). Check the API token/plan "
+                           "and the server logs for [warn] lines." % len(history))
     sm, ml = models if models else fit_models(history, day)
     season = current_season(day)
     ds = day.isoformat()
@@ -140,7 +143,11 @@ def build(day: date, history=None, models=None):
             "data_quality": "ok" if sm.known(h) and sm.known(a) else "limited (team has little history)",
         })
     results.sort(key=lambda r: r["kickoff"])
-    out = {"date": ds, "generated_at": datetime.utcnow().isoformat(), "demo": DEMO,
+    notice = None
+    if PROVIDER == "footballdata" and not DEMO:
+        notice = ("Free football-data.org data: Premier League, La Liga, Serie A, Primeira Liga and Champions "
+                  "League only. Injuries and bookmaker odds are not available, so those adjustments are off.")
+    out = {"date": ds, "generated_at": datetime.utcnow().isoformat(), "demo": DEMO, "notice": notice,
            "matches": results, "n_history_matches": len(history)}
     (PRED_DIR / f"{ds}.json").write_text(json.dumps(out))
     return out

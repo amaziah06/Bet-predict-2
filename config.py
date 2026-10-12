@@ -10,7 +10,10 @@ for d in (DATA_DIR, CACHE_DIR, PRED_DIR):
 
 # Get a key at https://dashboard.api-football.com (free plan: 100 requests/day)
 API_KEY = os.getenv("API_FOOTBALL_KEY", "")
-DEMO = os.getenv("DEMO", "").lower() in ("1", "true", "yes") or not API_KEY
+FD_TOKEN = os.getenv("FOOTBALL_DATA_TOKEN", "")   # free token from https://www.football-data.org/client/register
+# Provider: football-data.org if its token is set, else API-Football if its key is set, else demo
+PROVIDER = "footballdata" if FD_TOKEN else ("apifootball" if API_KEY else "demo")
+DEMO = os.getenv("DEMO", "").lower() in ("1", "true", "yes") or PROVIDER == "demo"
 
 # API-Football league ids
 LEAGUES = {

@@ -14,7 +14,10 @@ _lock = asyncio.Lock()
 
 async def _build(day: date):
     async with _lock:  # one build at a time (it is CPU/IO heavy)
-        return await asyncio.to_thread(service.build, day)
+        try:
+            return await asyncio.to_thread(service.build, day)
+        except RuntimeError as e:
+            raise HTTPException(503, str(e))
 
 
 async def _daily_loop():
