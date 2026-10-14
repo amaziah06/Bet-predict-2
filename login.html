@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="stylesheet" href="/static/style.css?v=4"><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#0b1118"><title>BetPredict - Log in</title></head><body><div class="hero">
+<div class="auth">
+  <img class="logo-big" src="/static/logo.svg" alt="BetPredict logo"><h1>Bet<span style="color:var(--acc)">Predict</span></h1>
+  <div class="mut">Daily football predictions with the numbers behind them.</div>
+  <div class="feat"><span>📊 Every market</span><span>⭐ Surest picks</span><span>🧾 Bet slip</span><span>🎯 Tracked accuracy</span></div>
+  <div id="warn" class="banner" style="display:none;margin-top:14px"></div>
+  <div class="tabs"><button id="tl" class="on" type="button">Log in</button><button id="ts" type="button">Sign up</button></div>
+  <form id="f" autocomplete="on">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="email" inputmode="email" required>
+    <label for="pw">Password</label>
+    <input id="pw" name="password" type="password" autocomplete="current-password" required>
+    <div id="c2" style="display:none"><label for="pw2">Repeat password</label><input id="pw2" type="password" autocomplete="new-password"></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="show" type="checkbox"> Show password</label>
+    <div class="mut small" id="hint" style="display:none;margin-top:6px">At least 8 characters.</div>
+    <button class="p go" id="go" type="submit">Log in</button>
+    <div class="err" id="err"></div>
+  </form>
+  <div class="mut small" style="margin-top:14px">Predictions are model estimates, not guarantees. 18+ only. Bet only what you can afford to lose.</div>
+</div></div>
+<script src="/static/common.js?v=4"></script>
+<script>
+let mode='login';
+function setMode(m){mode=m;
+  $('#tl').classList.toggle('on',m==='login');$('#ts').classList.toggle('on',m==='signup');
+  $('#c2').style.display=m==='signup'?'block':'none';$('#hint').style.display=m==='signup'?'block':'none';
+  $('#go').textContent=m==='signup'?'Create account':'Log in';
+  $('#pw').autocomplete=m==='signup'?'new-password':'current-password';$('#err').textContent='';}
+$('#tl').onclick=()=>setMode('login');$('#ts').onclick=()=>setMode('signup');
+$('#show').onchange=e=>{$('#pw').type=e.target.checked?'text':'password';$('#pw2').type=e.target.checked?'text':'password';};
+$('#f').onsubmit=async e=>{e.preventDefault();$('#err').textContent='';
+  const email=$('#email').value.trim(),password=$('#pw').value;
+  if(mode==='signup'&&password!==$('#pw2').value){$('#err').textContent='The two passwords do not match.';return;}
+  $('#go').disabled=true;
+  try{
+    const r=await fetch('/api/'+mode,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(x){}
+    if(!r.ok){let d=j&&j.detail;if(Array.isArray(d))d='Please check what you typed.';throw new Error(d||'Server error '+r.status);}
+    location.href='/games';
+  }catch(x){$('#err').textContent=x.message;$('#go').disabled=false;}
+};
+fetch('/api/status').then(r=>r.json()).then(s=>{if(s.storage_warning){const w=$('#warn');w.textContent=s.storage_warning;w.style.display='block';}}).catch(()=>{});
+</script></body></html>

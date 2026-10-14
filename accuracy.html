@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="stylesheet" href="/static/style.css?v=4"><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#0b1118"><title>BetPredict - Accuracy</title></head><body><header id="top"></header><main>
+  <h2 class="pt">Accuracy</h2>
+  <div class="mut small" style="margin-bottom:12px">A permanent record of predictions saved <b>before kick-off</b> and checked against the real result. Nothing is changed afterwards.</div>
+  <div id="out"><div class="sk"></div></div>
+</main>
+<footer>Probabilities are model estimates, not guarantees. Bet only what you can afford to lose. 18+ only.</footer><script src="/static/common.js?v=4"></script>
+<script>
+const P=x=>x==null?'–':Math.round(x*100)+'%';
+function band(b){return `<div class="bandrow"><div class="top"><span>${esc(b.label)} <span class="mut">(${b.n} games)</span></span><b>${b.n?P(b.hit_rate):'–'}</b></div><div class="meter"><i style="width:${b.n?b.hit_rate*100:0}%"></i></div>${b.n?`<div class="mut small">Model expected about ${P(b.avg_confidence)}</div>`:''}</div>`;}
+async function load(){
+  let D;try{D=await api('/api/accuracy');}catch(e){$('#out').innerHTML='<div class="empty"><div class="ic">⚠️</div>'+esc(e.message)+'</div>';return;}
+  const o=D.overall;
+  if(!o.n){$('#out').innerHTML=`<div class="empty"><div class="ic">📈</div><b>No finished games to score yet.</b><br>${D.logged?D.logged+' predictions are saved and waiting for results.':'Predictions are saved automatically each day.'}<br>Come back after today's games end.</div>`;return;}
+  const s=D.surest;
+  let h=`<div class="panel"><div class="mut small">Match-result picks correct</div><div class="big">${P(o.hit_rate)}</div><div class="mut small" style="margin-top:6px">${o.hits} of ${o.n} games · model expected about ${P(o.avg_confidence)}<br>Since ${esc(D.since||'')}${D.waiting?' · '+D.waiting+' waiting for results':''}</div></div>
+  <div class="panel"><b>By confidence</b>${D.bands.map(band).join('')}<div class="mut small">If the model is honest, each bar should be close to the number it expected.</div></div>
+  <div class="panel"><b>Surest picks record</b><div style="margin-top:8px">${s.n?`<span class="pos"><b>${s.wins}</b> won</span> · <span class="neg"><b>${s.losses}</b> lost</span> · ${P(s.hit_rate)} hit rate <span class="mut">(expected ${P(s.avg_probability)})</span>`:'<span class="mut">No finished surest picks yet.</span>'}</div></div>
+  <h3>Recent results</h3>`;
+  h+=D.recent.map(r=>`<div class="card slipitem ${r.hit?'won':'lost'}"><div style="min-width:0"><div class="meta">${esc(r.league||'')} · ${esc(r.date)}</div><b>${esc(r.home)} ${r.hg}–${r.ag} ${esc(r.away)}</b><div class="mut small">Picked ${esc(r.pick)} (${P(r.prob)})</div></div><span class="tag ${r.hit?'won':'lost'}" style="margin-left:auto">${r.hit?'✓':'✗'}</span></div>`).join('');
+  $('#out').innerHTML=h;
+}
+mountNav('accuracy').then(load).catch(()=>{});
+</script></body></html>

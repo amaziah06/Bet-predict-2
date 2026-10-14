@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="stylesheet" href="/static/style.css?v=4"><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#0b1118"><title>BetPredict - League tables</title></head><body><header id="top"></header><main>
+  <h2 class="pt">League tables</h2>
+  <div class="mut small" style="margin-bottom:12px">Standings and top scorers for the leagues covered.</div>
+  <div class="chips" id="chips"></div>
+  <div id="out"><div class="sk"></div><div class="sk"></div></div>
+</main>
+<footer>Probabilities are model estimates, not guarantees. Bet only what you can afford to lose. 18+ only.</footer><script src="/static/common.js?v=4"></script>
+<script>
+let comp=(new URLSearchParams(location.search).get('comp')||'PL').toUpperCase(),D=null;
+const CODES=[['PL','Premier League'],['PD','La Liga'],['SA','Serie A'],['PPL','Primeira Liga'],['CL','Champions League']];
+function chips(){$('#chips').innerHTML=CODES.map(([c,n])=>`<span class="chip ${c===comp?'on':''}" data-c="${c}">${esc(n)}</span>`).join('');
+  document.querySelectorAll('#chips .chip').forEach(e=>e.onclick=()=>{comp=e.dataset.c;chips();load();});}
+async function load(){
+  $('#out').innerHTML=skeleton(2);
+  try{D=await api('/api/standings?comp='+comp);}catch(e){$('#out').innerHTML='<div class="empty"><div class="ic">⚠️</div>'+esc(e.message)+'</div>';return;}
+  const n=D.table.length;
+  if(!n){$('#out').innerHTML='<div class="empty"><div class="ic">📊</div>No table available for this competition right now.</div>';return;}
+  const isCL=comp==='CL';
+  const zone=r=>{if(isCL)return r.pos<=8?'z-ucl':r.pos<=24?'z-uel':'z-rel';
+    if(r.pos<=4)return 'z-ucl';if(r.pos===5)return 'z-uel';if(r.pos>n-3)return 'z-rel';return '';};
+  const legend=isCL?'<span><i style="background:var(--acc)"></i>Last 16</span><span><i style="background:var(--blue)"></i>Play-offs</span><span><i style="background:var(--bad)"></i>Out</span>':'<span><i style="background:var(--acc)"></i>Top 4</span><span><i style="background:var(--blue)"></i>5th</span><span><i style="background:var(--bad)"></i>Bottom 3</span>';
+  let h=`<div class="legend">${legend}</div><div class="tbl"><table><tr><th>#</th><th>Team</th><th class="n">P</th><th class="n">W</th><th class="n">D</th><th class="n">L</th><th class="n">GD</th><th class="n">Pts</th></tr>`+
+   D.table.map(r=>`<tr class="${zone(r)}"><td>${r.pos}</td><td class="t">${crest(r.crest,r.team,'sm')}<span>${esc(r.team)}</span></td><td class="n">${r.played??''}</td><td class="n">${r.won??''}</td><td class="n">${r.draw??''}</td><td class="n">${r.lost??''}</td><td class="n">${r.gd>0?'+':''}${r.gd??''}</td><td class="n"><b>${r.points??''}</b></td></tr>`).join('')+'</table></div>';
+  if(D.scorers&&D.scorers.length)h+=`<h3>Top scorers</h3><div class="tbl">`+D.scorers.map((s,i)=>`<div class="scorer"><span class="mut" style="width:18px">${i+1}</span>${crest(s.crest,s.team,'sm')}<div><b>${esc(s.player)}</b><div class="mut small">${esc(s.team)}${s.assists?' · '+s.assists+' assists':''}${s.played?' · '+s.played+' games':''}</div></div><span class="g">${s.goals}</span></div>`).join('')+'</div>';
+  $('#out').innerHTML=h;
+}
+chips();mountNav('tables').then(load).catch(()=>{});
+</script></body></html>

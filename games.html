@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="stylesheet" href="/static/style.css?v=4"><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#0b1118"><title>BetPredict - Games</title></head>
+<body>
+<header id="top"></header>
+<main>
+  <div class="daybar"><button class="arrow" id="prev" aria-label="Previous day">‹</button>
+    <div class="mid"><b id="dtitle">Today</b><span id="dsub"></span></div>
+    <button class="arrow" id="next" aria-label="Next day">›</button></div>
+  <div class="stats" id="stats"></div>
+  <div class="chips" id="chips"></div>
+  <div class="row"><select id="sort"><option value="time">By kick-off</option><option value="conf">By confidence</option></select><span class="sp"></span><button id="today" class="ghost">Today</button><button id="ref" class="ghost">Refresh</button></div>
+  <div id="banner" class="banner" style="display:none"></div>
+  <div id="stamp" class="mut small" style="margin-bottom:8px"></div>
+  <div id="out"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+</main>
+<footer>Probabilities are model estimates, not guarantees. Bookmakers build in a margin, so even a good model loses money without a real edge. Bet only what you can afford to lose. 18+ only.</footer><script src="/static/common.js?v=4"></script>
+<script>
+let DATA=null,day=localDate(),loadedDay=null,picked=false,LG='';const openIds=new Set();
+function mid(m){
+  if(m.status==='finished'&&m.score)return `<div class="score ft">${m.score.home}–${m.score.away}</div><div class="stl">Full time</div>`;
+  if(m.status==='live')return `<div class="score live">${m.score?m.score.home+'–'+m.score.away:'•'}</div><div class="stl live">Live</div>`;
+  return `<div class="ko">${esc(clockTime(m.kickoff))}</div><div class="stl">Kick-off</div>`;
+}
+function hit(m){
+  if(m.status!=='finished'||!m.score)return '';
+  const h=m.score.home,a=m.score.away,s=m.pick.selection;
+  return ((s==='Home'&&h>a)||(s==='Draw'&&h===a)||(s==='Away'&&h<a))?' ✓':' ✗';
+}
+async function load(force,silent){
+  if(!silent)$('#out').innerHTML=skeleton(3);
+  try{DATA=await api((force?'/api/refresh?':'/api/predictions?')+'day='+day,force?{method:'POST'}:{});}
+  catch(e){if(!silent)$('#out').innerHTML='<div class="empty"><div class="ic">⚠️</div>'+esc(e.message)+'</div>';return;}
+  loadedDay=day;if(force)toast('Refreshed');
+  header();
+  const nb=$('#banner');const msg=DATA.demo?'Demo mode: results are simulated.':(DATA.notice||'');
+  nb.style.display=msg?'block':'none';nb.textContent=msg;
+  $('#stamp').textContent=DATA.status_updated_at?('Scores and status updated '+clockTime(DATA.status_updated_at+'Z')):'';
+  render();
+}
+function header(){
+  const t=localDate();$('#dtitle').textContent=day===t?'Today':day===addDays(t,1)?'Tomorrow':day===addDays(t,-1)?'Yesterday':prettyDay(day);
+  $('#dsub').textContent=day===t?prettyDay(day):day;
+  $('#prev').disabled=day<=addDays(t,-1);$('#next').disabled=day>=addDays(t,3);
+}
+function tbl(obj){return '<table>'+Object.entries(obj).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${pct(v)}</td></tr>`).join('')+'</table>'}
+function formHTML(s){return `<span class="form">${[...(s||'')].map(c=>`<span class="${esc(c)}">${esc(c)}</span>`).join('')}</span>`}
+function slipOpts(m){
+  const M=m.markets,h=m.home,a=m.away,o=[];
+  [['Home',h+' to win'],['Draw','Draw'],['Away',a+' to win']].forEach(([k,l])=>o.push(['1X2',k,l,M['1X2'][k]]));
+  [['1X',h+' or draw (1X)'],['X2',a+' or draw (X2)'],['12','No draw (12)']].forEach(([k,l])=>o.push(['Double chance',k,l,M['Double chance'][k]]));
+  ['1.5','2.5','3.5'].forEach(L=>['Over','Under'].forEach(s=>{const k=s+' '+L;o.push(['Goals',k,s+' '+L+' goals',M['Total goals over/under'][k]]);}));
+  ['Yes','No'].forEach(k=>o.push(['BTTS',k,'Both teams to score: '+k,M['Both teams to score'][k]]));
+  return o;
+}
+function addSel(id){
+  const m=DATA.matches.find(x=>x.fixture_id===id);if(!m)return;const v=$('#sel'+id).value.split('|');
+  addToSlip(id,DATA.date,v[0],v.slice(1).join('|'));
+}
+function detail(m){
+  const M=m.markets,f=m.factors;
+  let h='';
+  if(m.status==='upcoming')h+=`<div class="addrow"><select id="sel${m.fixture_id}">${slipOpts(m).map(o=>`<option value="${esc(o[0]+'|'+o[1])}">${esc(o[2])} · ${pct(o[3])}</option>`).join('')}</select><button class="p" onclick="addSel(${m.fixture_id})">+ Slip</button></div>`;
+  h+=`<h3>Why this prediction</h3><div class="grid">
+   <div class="box"><b>Expected goals</b>${esc(m.home)} ${m.expected_goals.home} – ${m.expected_goals.away} ${esc(m.away)}<br><span class="mut">base model ${f.base_expected_goals.home}–${f.base_expected_goals.away}</span></div>
+   <div class="box"><b>Last ${m.form.home.n||8} games form</b>${esc(m.home)}: ${formHTML(m.form.home.string)} <span class="mut">${m.form.home.ppg??'-'} ppg</span><br>${esc(m.away)}: ${formHTML(m.form.away.string)} <span class="mut">${m.form.away.ppg??'-'} ppg</span></div>
+   <div class="box"><b>Home strength / away strength</b>${esc(m.home)} at home: ${m.home_away_split.home_team_at_home.ppg??'-'} ppg<br>${esc(m.away)} away: ${m.home_away_split.away_team_away.ppg??'-'} ppg</div>
+   <div class="box"><b>Head to head (last ${m.h2h.n})</b>${m.h2h.home_wins}W-${m.h2h.draws}D-${m.h2h.away_wins}L for ${esc(m.home)}${m.h2h.recent.map(r=>`<br><span class="mut">${esc(r.date)} ${esc(r.score)}</span>`).join('')}</div>
+   <div class="box"><b>Elo</b>${esc(m.home)}: ${m.elo.home??'-'}<br>${esc(m.away)}: ${m.elo.away??'-'}</div>
+   <div class="box"><b>Model split (H/D/A)</b>Stats: ${f.stat_1x2.map(pct).join(' / ')}<br>ML: ${f.ml_1x2?f.ml_1x2.map(pct).join(' / '):'n/a'}<br><span class="mut">Adjustments: form ×${f.form_multiplier.home}/${f.form_multiplier.away}, injuries ×${f.injury_multiplier.home}/${f.injury_multiplier.away}</span></div></div>`;
+  const inj=(side,name)=>{const l=m.injuries[side];return l.length?`<b>${esc(name)}</b>: `+l.map(p=>`${esc(p.name)} <span class="mut">(${esc(p.reason||p.type)})</span>`).join(', '):''};
+  const ij=[inj('home',m.home),inj('away',m.away)].filter(Boolean);
+  if(ij.length)h+=`<h3>Injuries & suspensions</h3>`+ij.join('<br>');
+  if(m.value_bets.length){
+    h+=`<h3>Odds vs model</h3><table><tr><th>Bet</th><th class="n">Model</th><th class="n">Odds</th><th class="n">Edge</th></tr>`+
+    m.value_bets.map(v=>`<tr><td>${esc(v.bet)}</td><td class="n">${pct(v.model_prob)}</td><td class="n">${v.odds}</td><td class="n ${v.edge>0?'pos':'neg'}">${(v.edge*100).toFixed(1)}%</td></tr>`).join('')+'</table>';
+  }
+  h+='<h3>All markets</h3><div class="grid">';
+  for(const [name,val] of Object.entries(M)){
+    if(name.startsWith('Asian')){
+      h+=`<div class="box"><b>${esc(name)}</b><table><tr><th></th><th class="n">Win</th><th class="n">Push</th><th class="n">Lose</th></tr>`+Object.entries(val).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${pct(v.win)}</td><td class="n">${v.push?pct(v.push):'-'}</td><td class="n">${pct(v.lose)}</td></tr>`).join('')+'</table></div>';
+    }else h+=`<div class="box"><b>${esc(name)}</b>${tbl(val)}</div>`;
+  }
+  return h+'</div>';
+}
+function toggle(id){const el=document.getElementById('c'+id);el.classList.toggle('open');el.classList.contains('open')?openIds.add(id):openIds.delete(id);}
+function render(){
+  if(!DATA)return;
+  const all=DATA.matches,leagues=[];
+  all.forEach(m=>{if(!leagues.find(l=>l.n===m.league))leagues.push({n:m.league,e:m.league_emblem});});
+  if(LG&&!leagues.find(l=>l.n===LG))LG='';
+  $('#chips').innerHTML=leagues.length>1?`<span class="chip ${LG?'':'on'}" onclick="setLG('')">All</span>`+leagues.map((l,i)=>`<span class="chip ${LG===l.n?'on':''}" data-i="${i}">${l.e?'<img src="'+esc(l.e)+'" alt="" onerror="this.remove()">':''}${esc(l.n)}</span>`).join(''):'';
+  document.querySelectorAll('#chips .chip[data-i]').forEach(c=>c.onclick=()=>setLG(leagues[+c.dataset.i].n));
+  const up=all.filter(m=>m.status==='upcoming'&&m.data_quality==='ok');
+  const best=up.length?Math.max(...up.map(m=>m.pick.probability)):null;
+  $('#stats').innerHTML=`<div class="stat"><b>${all.length}</b><span>Games</span></div><div class="stat"><b>${new Set(all.map(m=>m.league)).size}</b><span>Leagues</span></div><div class="stat"><b>${best==null?'–':Math.round(best*100)+'%'}</b><span>Top pick</span></div>`;
+  const sort=$('#sort').value;
+  let ms=all.filter(m=>!LG||m.league===LG);
+  if(sort==='conf')ms=[...ms].sort((a,b)=>b.pick.probability-a.pick.probability);
+  if(!ms.length){$('#out').innerHTML='<div class="empty"><div class="ic">🗓️</div>No games on this date in the covered leagues.</div>';return;}
+  let html='',last='';
+  ms.forEach(m=>{
+    if(sort==='time'&&m.league!==last){html+=`<div class="league">${m.league_emblem?'<img src="'+esc(m.league_emblem)+'" alt="" onerror="this.remove()">':''}${esc(m.league)}</div>`;last=m.league;}
+    const H=m.markets['1X2'],o25=m.markets['Total goals over/under'],bt=m.markets['Both teams to score'];
+    html+=`<div class="card ${openIds.has(m.fixture_id)?'open':''}" id="c${m.fixture_id}"><div class="head" onclick="toggle(${m.fixture_id})">
+      <div class="mrow"><div class="tm">${crest(m.home_crest,m.home,'lg')}<span>${esc(m.home)}</span></div><div class="mid">${mid(m)}</div><div class="tm">${crest(m.away_crest,m.away,'lg')}<span>${esc(m.away)}</span></div></div>
+      ${sort!=='time'?`<div class="meta" style="text-align:center">${esc(m.league)}</div>`:''}
+      <div class="bar"><div class="h" style="width:${H.Home*100}%">${Math.round(H.Home*100)}</div><div class="d" style="width:${H.Draw*100}%">${Math.round(H.Draw*100)}</div><div class="a" style="width:${H.Away*100}%">${Math.round(H.Away*100)}</div></div>
+      <div class="pick"><span class="tag ${esc(m.pick.confidence)}">${esc(m.pick.confidence)}: ${esc(m.pick.selection)} ${pct(m.pick.probability)}${hit(m)}</span>
+      <span class="tag">O2.5 ${pct(o25['Over 2.5'])}</span><span class="tag">BTTS ${pct(bt.Yes)}</span><span class="tag">xG ${m.expected_goals.home}–${m.expected_goals.away}</span></div>
+      <div class="chev">Tap for all markets ⌄</div></div>
+      <div class="detail">${detail(m)}</div></div>`;
+  });
+  $('#out').innerHTML=html;
+}
+function setLG(n){LG=n;render();}
+function go(d){day=d;picked=d!==localDate();openIds.clear();load();}
+function rollover(){if(!picked&&localDate()!==loadedDay){go(localDate());}}
+setInterval(rollover,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){rollover();if(loadedDay===localDate())load(false,true);}});
+setInterval(()=>{if(!document.hidden&&loadedDay===localDate())load(false,true);},300000);
+$('#prev').onclick=()=>go(addDays(day,-1));$('#next').onclick=()=>go(addDays(day,1));
+$('#today').onclick=()=>go(localDate());$('#ref').onclick=()=>load(true);$('#sort').onchange=render;
+mountNav('games').then(()=>load()).catch(()=>{});
+</script></body></html>

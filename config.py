@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,3 +38,32 @@ FORM_MATCHES = 8
 H2H_MATCHES = 10
 ML_WEIGHT = 0.20              # statistics dominate; ML only nudges 1X2
 REFRESH_HOUR_LOCAL = 6        # daily rebuild hour (server local time)
+
+
+# ---- accounts / time zone -------------------------------------------------------
+# Persistent database for accounts (free Postgres, e.g. neon.tech). Without it accounts are kept in a
+# local SQLite file, which a free host wipes on every restart.
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
+SESSION_DAYS = 30
+
+# "Today" is decided in this time zone (not the server's UTC), so the day flips at your midnight.
+APP_TZ = os.getenv("APP_TZ", "Africa/Lagos")
+
+
+def tzinfo():
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(APP_TZ)
+    except Exception:
+        print(f"[warn] time zone {APP_TZ!r} unavailable, using UTC")
+        return timezone.utc
+
+
+def today_local():
+    return datetime.now(tzinfo()).date()
+
+
+# competitions with league tables / top scorers (football-data.org codes)
+TABLE_CODES = {"PL": 39, "PD": 140, "SA": 135, "PPL": 94, "CL": 2}

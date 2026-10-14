@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="BetPredict">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ddc97"/><stop offset="1" stop-color="#0f9d6a"/></linearGradient></defs>
+  <rect width="64" height="64" rx="15" fill="url(#g)"/>
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#04170f" stroke-width="3.5" opacity=".9"/>
+  <path d="M19 38 L28 29 L35 35 L46 23" fill="none" stroke="#04170f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="46" cy="23" r="3.6" fill="#04170f"/>
+</svg>

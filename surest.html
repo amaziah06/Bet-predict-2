@@ -1,0 +1,45 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="stylesheet" href="/static/style.css?v=4"><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#0b1118"><title>BetPredict - Surest picks</title></head><body><header id="top"></header><main>
+  <h2 class="pt" id="title">Surest picks</h2>
+  <div class="mut small" style="margin-bottom:12px">The 2 games where the model is most confident, with the single most probable bet for each.</div>
+  <div class="daybar"><button class="arrow" id="prev">‹</button><div class="mid"><b id="dtitle">Today</b><span id="dsub"></span></div><button class="arrow" id="next">›</button></div>
+  <div id="banner" class="banner" style="display:none"></div>
+  <div id="out"><div class="sk"></div><div class="sk"></div></div>
+  <div class="mut small" style="margin-top:14px">"Surest" means the highest model probability among everyday bets (match result, double chance, goals over/under, both teams to score). Very likely bets usually pay low odds, and no pick is guaranteed: even an 80% pick loses about 1 time in 5.</div>
+</main>
+<footer>Probabilities are model estimates, not guarantees. Bet only what you can afford to lose. 18+ only.</footer><script src="/static/common.js?v=4"></script>
+<script>
+let day=localDate(),loadedDay=null,picked=false,D=null;
+function status(p){
+  if(p.status==='finished'&&p.score)return `<span class="ft">FT ${p.score.home}–${p.score.away}</span>`;
+  if(p.status==='live')return `<span class="live">LIVE ${p.score?p.score.home+'–'+p.score.away:''}</span>`;
+  return esc(clockTime(p.kickoff));
+}
+function header(){const t=localDate();$('#dtitle').textContent=day===t?'Today':day===addDays(t,1)?'Tomorrow':day===addDays(t,-1)?'Yesterday':prettyDay(day);$('#dsub').textContent=day===t?prettyDay(day):day;$('#prev').disabled=day<=addDays(t,-1);$('#next').disabled=day>=addDays(t,3);}
+async function load(silent){
+  if(!silent)$('#out').innerHTML=skeleton(2);
+  try{D=await api('/api/surest?day='+day);}catch(e){if(!silent)$('#out').innerHTML='<div class="empty"><div class="ic">⚠️</div>'+esc(e.message)+'</div>';return;}
+  loadedDay=day;header();
+  const nb=$('#banner');const msg=D.demo?'Demo mode: results are simulated.':(D.notice||'');nb.style.display=msg?'block':'none';nb.textContent=msg;
+  if(!D.picks.length){
+    $('#out').innerHTML=D.n_matches?'<div class="empty"><div class="ic">🔍</div>No reliable picks yet: the model needs at least 5 earlier games for both teams.</div>':'<div class="empty"><div class="ic">🗓️</div>No games on this date in the covered leagues.</div>';return;}
+  $('#out').innerHTML=D.picks.map((p,i)=>`<div class="card pcard">
+    <span class="rank">#${i+1}</span>
+    <div class="meta" style="margin-bottom:10px">${esc(p.league)} · ${status(p)}</div>
+    <div class="mrow"><div class="tm">${crest(p.home_crest,p.home,'lg')}<span>${esc(p.home)}</span></div><div class="mid stl">vs</div><div class="tm">${crest(p.away_crest,p.away,'lg')}<span>${esc(p.away)}</span></div></div>
+    <div class="bigbet">${esc(p.bet)}</div>
+    <div class="prob"><b>${pct(p.probability)}</b> model probability · fair odds ${p.fair_odds}</div>
+    <div class="meter"><i style="width:${Math.min(100,p.probability*100)}%"></i></div>
+    <div class="pick"><span class="tag ${esc(p.confidence.split(' ')[0])}">${esc(p.confidence)} confidence</span>
+      ${p.result?`<span class="tag ${p.result}">${p.result==='won'?'✓ Won':'✗ Lost'}</span>`:''}</div>
+    <ul class="why">${p.reasons.map(r=>`<li>${esc(r)}</li>`).join('')}</ul>
+    ${p.status==='upcoming'?`<button class="p" style="width:100%;margin-top:12px" onclick="add(${i})">+ Add to bet slip</button>`:''}</div>`).join('');
+}
+function add(i){const p=D.picks[i];addToSlip(p.fixture_id,D.date,p.market,p.key);}
+function go(d){day=d;picked=d!==localDate();load();}
+function rollover(){if(!picked&&localDate()!==loadedDay)go(localDate());}
+setInterval(rollover,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){rollover();if(loadedDay===localDate())load(true);}});
+setInterval(()=>{if(!document.hidden&&loadedDay===localDate())load(true);},300000);
+$('#prev').onclick=()=>go(addDays(day,-1));$('#next').onclick=()=>go(addDays(day,1));
+mountNav('surest').then(()=>load()).catch(()=>{});
+</script></body></html>

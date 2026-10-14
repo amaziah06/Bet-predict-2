@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><link rel="stylesheet" href="/static/style.css?v=4"><link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#0b1118"><title>BetPredict - Bet slip</title></head><body><header id="top"></header><main>
+  <h2 class="pt">My bet slip</h2>
+  <div class="mut small" style="margin-bottom:12px">Save the bets you like. Results are checked automatically after the games end. This is a tracker only: it does not place real bets.</div>
+  <div id="out"><div class="sk"></div></div>
+</main>
+<footer>Probabilities are model estimates, not guarantees. Bet only what you can afford to lose. 18+ only.</footer><script src="/static/common.js?v=4"></script>
+<script>
+function st(i){return i.status==='won'?'<span class="tag won">✓ Won</span>':i.status==='lost'?'<span class="tag lost">✗ Lost</span>':`<span class="tag">${esc(prettyDay(i.date))} · ${esc(clockTime(i.kickoff))}</span>`;}
+async function load(){
+  let D;try{D=await api('/api/slip');}catch(e){$('#out').innerHTML='<div class="empty"><div class="ic">⚠️</div>'+esc(e.message)+'</div>';return;}
+  setSlipBadge(D.open);
+  if(!D.items.length){$('#out').innerHTML='<div class="empty"><div class="ic">🧾</div>Your slip is empty.<br>Open a game and tap <b>+ Slip</b>, or add a surest pick.<br><br><a href="/games"><button class="p">Browse games</button></a></div>';return;}
+  let h='';
+  if(D.open){h+=`<div class="combo"><div class="mut small">${D.open} open bet${D.open>1?'s':''} · combined as an accumulator</div><div style="margin-top:6px"><b>${pct(D.combined_probability)}</b> chance all win</div><div class="mut small" style="margin-top:4px">Fair odds ${D.fair_odds} · assumes the games are independent, so treat it as a rough guide.</div></div>`;}
+  if(D.won+D.lost)h+=`<div class="stats" style="grid-template-columns:repeat(2,1fr)"><div class="stat"><b class="pos">${D.won}</b><span>Won</span></div><div class="stat"><b class="neg">${D.lost}</b><span>Lost</span></div></div>`;
+  h+=D.items.map(i=>`<div class="card slipitem ${i.status}"><div style="min-width:0"><div class="meta">${esc(i.league||'')}</div><b>${esc(i.label)}</b><div class="mut small">${esc(i.home)} vs ${esc(i.away)}${i.hg!=null?' · FT '+i.hg+'–'+i.ag:''}</div><div style="margin-top:6px">${st(i)} <span class="tag">${pct(i.probability)}</span></div></div><button class="x ghost" onclick="del(${i.id})" aria-label="Remove">✕</button></div>`).join('');
+  if(D.won+D.lost)h+='<button class="ghost" style="width:100%" onclick="clr()">Clear finished bets</button>';
+  $('#out').innerHTML=h;
+}
+async function del(id){try{await api('/api/slip/'+id,{method:'DELETE'});toast('Removed');load();}catch(e){toast(e.message);}}
+async function clr(){try{await api('/api/slip/clear',{method:'POST'});toast('Cleared');load();}catch(e){toast(e.message);}}
+mountNav('slip').then(load).catch(()=>{});
+</script></body></html>

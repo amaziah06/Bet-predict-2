@@ -4,7 +4,7 @@ import random
 from datetime import date, datetime, timedelta
 import numpy as np
 
-from .config import LEAGUES
+from .config import LEAGUES, current_season
 
 _rng_seed = 42
 _TEAMS = {}
@@ -88,3 +88,24 @@ def top_contributors(league_id, season, ttl=0):
 
 def odds(league_id, season, date_str, ttl=0):
     return {}  # demo has no bookmaker; value-bet section is skipped
+
+
+def results_for(ids, dates=(), ttl=0):
+    return {}  # demo games never finish
+
+
+def standings(league_id, ttl=0):
+    rows = {}
+    for t in _teams(league_id):
+        rows[t["id"]] = {"team": t["name"], "crest": None, "played": 0, "won": 0, "draw": 0, "lost": 0, "gf": 0, "ga": 0}
+    for m in finished_matches(league_id, current_season(date.today())):
+        h, a = rows[m["home_id"]], rows[m["away_id"]]
+        for r, f, c in ((h, m["hg"], m["ag"]), (a, m["ag"], m["hg"])):
+            r["played"] += 1; r["gf"] += f; r["ga"] += c
+            r["won"] += f > c; r["draw"] += f == c; r["lost"] += f < c
+    table = sorted(rows.values(), key=lambda r: (-(3 * r["won"] + r["draw"]), -(r["gf"] - r["ga"]), -r["gf"]))
+    for i, r in enumerate(table, 1):
+        r.update(pos=i, points=3 * r["won"] + r["draw"], gd=r["gf"] - r["ga"])
+    scorers = [{"player": f"Player {i + 1}", "team": table[i % len(table)]["team"], "crest": None,
+                "goals": 12 - i, "assists": i % 4, "penalties": i % 2, "played": 9} for i in range(8)]
+    return {"table": table, "scorers": scorers, "emblem": None}

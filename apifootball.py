@@ -109,3 +109,11 @@ def odds(league_id, season, date_str, ttl=2 * 3600):
             break
         page += 1
     return res
+
+
+def results_for(ids, dates=(), ttl=0):
+    return {}
+
+
+def standings(league_id, ttl=0):
+    return {"table": [], "scorers": [], "emblem": None}
